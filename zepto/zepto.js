@@ -7,20 +7,31 @@
 }(this, function(window) {
   
   var Zepto = (function() {
-  var undefined, key, $, classList, emptyArray = [], concat = emptyArray.concat, filter = emptyArray.filter, slice = emptyArray.slice,
+  var undefined, key, $, classList, 
+    // 获取cancat，filter，slice方法，并且优化作用域链
+    emptyArray = [], concat = emptyArray.concat, filter = emptyArray.filter, slice = emptyArray.slice,
     document = window.document,
     elementDisplay = {}, classCache = {},
     cssNumber = { 'column-count': 1, 'columns': 1, 'font-weight': 1, 'line-height': 1,'opacity': 1, 'z-index': 1, 'zoom': 1 },
+    
+    // 匹配HTML标签
     fragmentRE = /^\s*<(\w+|!)[^>]*>/,
+    // 匹配单个HTML标签
     singleTagRE = /^<(\w+)\s*\/?>(?:<\/\1>|)$/,
+    // 匹配自闭合标签
     tagExpanderRE = /<(?!area|br|col|embed|hr|img|input|link|meta|param)(([\w:]+)[^>]*)\/>/ig,
+    // 匹配根节点
     rootNodeRE = /^(?:body|html)$/i,
+    // 匹配A-Z
     capitalRE = /([A-Z])/g,
 
     // special attributes that should be get/set via method calls
+    // 需要提供get和set的方法名？
     methodAttributes = ['val', 'css', 'html', 'text', 'data', 'width', 'height', 'offset'],
 
+    // 相邻节点的一些操作
     adjacencyOperators = [ 'after', 'prepend', 'before', 'append' ],
+    // 创建table的节点，当需要给tr，tbody，thead，tfoot，td，th设置innerHTML的时候，需要用其父元素作为容器来装载
     table = document.createElement('table'),
     tableRow = document.createElement('tr'),
     containers = {
@@ -29,13 +40,17 @@
       'td': tableRow, 'th': tableRow,
       '*': document.createElement('div')
     },
+
+    // 当DOM ready的时候，document会有以下三种状态的一种
     readyRE = /complete|loaded|interactive/,
+
     simpleSelectorRE = /^[\w-]*$/,
     class2type = {},
     toString = class2type.toString,
     zepto = {},
     camelize, uniq,
-    tempParent = document.createElement('div'), // 临时元素div
+    // 临时父元素div
+    tempParent = document.createElement('div'), 
     propMap = {
       'tabindex': 'tabIndex',
       'readonly': 'readOnly',
@@ -50,6 +65,8 @@
       'frameborder': 'frameBorder',
       'contenteditable': 'contentEditable'
     },
+
+    // 判断是否是数组
     isArray = Array.isArray || function(object){ return object instanceof Array }
 
   /**
@@ -144,7 +161,12 @@
     }
     return elementDisplay[nodeName]
   }
-
+  /**
+   * 获取子元素集
+   * 原理：原生方法children 老火狐不支持，遍历childNodes
+   * @param element 
+   * @return {*} 
+   */
   function children(element) {
     return 'children' in element ?
       slice.call(element.children) :
@@ -163,32 +185,58 @@
   // The generated DOM nodes are returned as an array.
   // This function can be overridden in plugins for example to make
   // it compatible with browsers that don't support the DOM fully.
+  /**
+   * 内部函数 HTML 转换成 DOM
+   * 原理是 创建父元素，innerHTML转换
+   * @param html       [html片段]
+   * @param name       [容器标签名]
+   * @param properties [附加的属性对象]
+   * @return {*}      
+   */
   zepto.fragment = function(html, name, properties) {
     var dom, nodes, container
 
     // A special case optimization for a single tag
+    // 如果是单个元素，创建DOM
+    // 注意：RegExp 是javascript中的一个内置对象。为正则表达式
+    // RegExp.$1是RegExp的一个属性，指的是与正则表达式匹配的第一个 子匹配（以括号为标志）字符串，以此类推，RegExp.$2···RegExp.$99有99个匹配
     if (singleTagRE.test(html)) dom = $(document.createElement(RegExp.$1))
 
     if (!dom) {
+      // 修正自闭合标签 如<div />，转换成<div></div>
       if (html.replace) html = html.replace(tagExpanderRE, "<$1></$2>")
+
+      // 给name取元素名
       if (name === undefined) name = fragmentRE.test(html) && RegExp.$1
+      
+      // 设置容器名，如果不是tr, tbody, thead, tfoot, td, th，则容器名为div
+      // 为什么设置容器，是严格按照HTML语法，虽然tr td th浏览器会自动添加tbody 
       if (!(name in containers)) name = '*'
 
-      container = containers[name]
-      container.innerHTML = '' + html
+      container = containers[name] // 创建容器
+      container.innerHTML = '' + html // 生成DOM
+
+      // 取容器的子节点，（子节点集会返回） $.each返回第一个参数
       dom = $.each(slice.call(container.childNodes), function(){
-        container.removeChild(this)
+        container.removeChild(this) // 把创建的子节点逐个删除
       })
     }
 
+    // 如果properties是对象，遍历它，将它设置成DOM的属性
     if (isPlainObject(properties)) {
+      // 转换成Zepto Obj，方便调用Zepto的方法
       nodes = $(dom)
+
+      // 遍历对象，设置属性
       $.each(properties, function(key, value) {
+        // 优先获取属性修正对象，通过修正对象读写值
+        // methodAttributes包含'val', 'css', 'html', 'text', 'data', 'width', 'height', 'offset'？？
         if (methodAttributes.indexOf(key) > -1) nodes[key](value)
         else nodes.attr(key, value)
       })
     }
 
+    // 返回dom数组
     return dom
   }
 
@@ -322,6 +370,7 @@
       )
   }
 
+  // 在元素中过滤某些元素
   function filtered(nodes, selector) {
     return selector == null ? $(nodes) : $(nodes).filter(selector)
   }
@@ -410,14 +459,18 @@
   $.expr = { }
   $.noop = function() {}
 
+  // 内部方法
+  // 遍历对象/数组，在每个元素上执行回调，将回调的返回值放入一个新的数组返回
   $.map = function(elements, callback){
     var value, values = [], i, key
+    // 如果遍历的是数组或伪数组
     if (likeArray(elements))
       for (i = 0; i < elements.length; i++) {
         value = callback(elements[i], i)
         if (value != null) values.push(value)
       }
     else
+      // 如果是对象
       for (key in elements) {
         value = callback(elements[key], key)
         if (value != null) values.push(value)
@@ -425,12 +478,20 @@
     return flatten(values)
   }
 
+  /**
+   * 以集合每一个元素作为上下文，来执行回调函数
+   * @param elements
+   * @param callback 
+   * @return {[*]}
+   */
   $.each = function(elements, callback){
     var i, key
     if (likeArray(elements)) {
+      // 数组或伪数组
       for (i = 0; i < elements.length; i++)
         if (callback.call(elements[i], i, elements[i]) === false) return elements
     } else {
+      // 对象
       for (key in elements)
         if (callback.call(elements[key], key, elements[key]) === false) return elements
     }
@@ -507,9 +568,12 @@
       })
       return this
     },
+    // 过滤返回处理结果为true的记录
     filter: function(selector){
       if (isFunction(selector)) return this.not(this.not(selector))
+      // 收集返回结果为true的记录
       return $(filter.call(this, function(element){
+        // 当element与selector匹配，则收集
         return zepto.matches(element, selector)
       }))
     },
@@ -575,28 +639,47 @@
       })
       return $(nodes)
     },
+    // 获取所有匹配的祖先元素
     parents: function(selector){
       var ancestors = [], nodes = this
-      while (nodes.length > 0)
+      // 先取得所有祖先元素
+      while (nodes.length > 0) // 到不再由父元素时，退出循环
+        // 取出所有父元素
         nodes = $.map(nodes, function(node){
+          // 取出父级，到document为止
           if ((node = node.parentNode) && !isDocument(node) && ancestors.indexOf(node) < 0) {
             ancestors.push(node)
+            // 收集已经获取到的父级元素，去重复
             return node
           }
         })
+
+      // 筛选出符合选择器的祖先元素
       return filtered(ancestors, selector)
     },
+    // 获取父元素
     parent: function(selector){
       return filtered(uniq(this.pluck('parentNode')), selector)
     },
+    /**
+     * 获取子元素集
+     * @param selector
+     * @return {*|HTMLElement}
+     */
     children: function(selector){
       return filtered(this.map(function(){ return children(this) }), selector)
     },
     contents: function() {
       return this.map(function() { return this.contentDocument || slice.call(this.childNodes) })
     },
+    /**
+     * 获取兄弟子节点集
+     * @param selector
+     * @return {*|HTMLElement}
+     */
     siblings: function(selector){
       return filtered(this.map(function(i, el){
+        // 到其父元素取得所有子节点，再排除本身
         return filter.call(children(el.parentNode), function(child){ return child!==el })
       }), selector)
     },
@@ -604,6 +687,7 @@
       return this.each(function(){ this.innerHTML = '' })
     },
     // `pluck` is borrowed from Prototype.js
+    // 根据是否存在该属性，查找该集合，返回一组属性值
     pluck: function(property){
       return $.map(this, function(el){ return el[property] })
     },
@@ -666,7 +750,18 @@
         ;(setting === undefined ? el.css("display") == "none" : setting) ? el.show() : el.hide()
       })
     },
+    /**
+     * 筛选前面所有的兄弟元素
+     * @param  selector
+     * @return {*}
+     */
     prev: function(selector){ return $(this.pluck('previousElementSibling')).filter(selector || '*') },
+    
+    /**
+     * 筛选后面所有的兄弟元素
+     * @param  selector
+     * @return {*}
+     */
     next: function(selector){ return $(this.pluck('nextElementSibling')).filter(selector || '*') },
     html: function(html){
       return 0 in arguments ?
